@@ -46,7 +46,7 @@
 
 #include "zmalloc.h"
 #include "config.h"
-
+#include "server.h"
 /* Include the best multiplexing layer supported by this system.
  * The following should be ordered by performances, descending. */
 #ifdef HAVE_EVPORT
@@ -256,7 +256,7 @@ int aeDeleteTimeEvent(aeEventLoop *eventLoop, long long id)
  * 1) Insert the event in order, so that the nearest is just the head.
  *    Much better but still insertion or deletion of timers is O(N).
  * 2) Use a skiplist to have this operation as O(1) and insertion as O(log(N)).
- */
+ */ // usUntilEarliestTimer 是计算 Redis 事件循环中距离下一个最早的时间事件还有多少微秒
 static int64_t usUntilEarliestTimer(aeEventLoop *eventLoop) {
     aeTimeEvent *te = eventLoop->timeEventHead;
     if (te == NULL) return -1;
@@ -277,10 +277,9 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
     int processed = 0;
     aeTimeEvent *te;
     long long maxId;
-
     te = eventLoop->timeEventHead;
     maxId = eventLoop->timeEventNextId-1;
-    monotime now = getMonotonicUs();
+    monotime now = getMonotonicUs(); // getMonotonicUs 获取单调递增的时钟时间，表示自Redis实例启动以来经过的微秒数，该函数主要用于Redis内部的一些计时和统计功能。
     while(te) {
         long long id;
 
@@ -318,18 +317,16 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
             te = te->next;
             continue;
         }
-
         if (te->when <= now) {
             int retval;
-
             id = te->id;
             te->refcount++;
-            retval = te->timeProc(eventLoop, id, te->clientData);
+            retval = te->timeProc(eventLoop, id, te->clientData); // retval = 1000/server.hz
             te->refcount--;
             processed++;
             now = getMonotonicUs();
             if (retval != AE_NOMORE) {
-                te->when = now + retval * 1000;
+                te->when = now + retval * 1000; // 主要是 when，定义了定时器事件触发的时间。retval * 1000 = 100 * 1000微秒=0.1秒
             } else {
                 te->id = AE_DELETED_EVENT_ID;
             }
@@ -357,7 +354,6 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
 int aeProcessEvents(aeEventLoop *eventLoop, int flags)
 {
     int processed = 0, numevents;
-
     /* Nothing to do? return ASAP */
     if (!(flags & AE_TIME_EVENTS) && !(flags & AE_FILE_EVENTS)) return 0;
 
@@ -372,10 +368,10 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
         int64_t usUntilTimer = -1;
 
         if (flags & AE_TIME_EVENTS && !(flags & AE_DONT_WAIT))
-            usUntilTimer = usUntilEarliestTimer(eventLoop);
+            usUntilTimer = usUntilEarliestTimer(eventLoop); // usUntilEarliestTimer 是计算 Redis 事件循环中距离下一个最早的时间事件还有多少微秒，这个时间会作为 aeApiPoll 的超时时间。
 
         if (usUntilTimer >= 0) {
-            tv.tv_sec = usUntilTimer / 1000000;
+            tv.tv_sec = usUntilTimer / 1000000; // 使用 usUntilTimer 初始化 tvp
             tv.tv_usec = usUntilTimer % 1000000;
             tvp = &tv;
         } else {
@@ -390,23 +386,20 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
                 tvp = NULL; /* wait forever */
             }
         }
-
         if (eventLoop->flags & AE_DONT_WAIT) {
             tv.tv_sec = tv.tv_usec = 0;
             tvp = &tv;
         }
 
         if (eventLoop->beforesleep != NULL && flags & AE_CALL_BEFORE_SLEEP)
-            eventLoop->beforesleep(eventLoop);
+            eventLoop->beforesleep(eventLoop);// 这里会调用 beforeSleep
 
         /* Call the multiplexing API, will return only on timeout or when
-         * some event fires. */
+         * some event fires. */ // tvp 是超时时间
         numevents = aeApiPoll(eventLoop, tvp);
-
         /* After sleep callback. */
         if (eventLoop->aftersleep != NULL && flags & AE_CALL_AFTER_SLEEP)
             eventLoop->aftersleep(eventLoop);
-
         for (j = 0; j < numevents; j++) {
             int fd = eventLoop->fired[j].fd;
             aeFileEvent *fe = &eventLoop->events[fd];
@@ -464,7 +457,6 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
     /* Check time events */
     if (flags & AE_TIME_EVENTS)
         processed += processTimeEvents(eventLoop);
-
     return processed; /* return the number of processed file/time events */
 }
 

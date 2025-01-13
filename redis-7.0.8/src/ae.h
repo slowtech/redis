@@ -79,8 +79,8 @@ typedef struct aeFileEvent {
 /* Time event structure */
 typedef struct aeTimeEvent {
     long long id; /* time event identifier. */
-    monotime when;
-    aeTimeProc *timeProc;
+    monotime when; // 定时器事件触发的时间。
+    aeTimeProc *timeProc; // 定时器事件触发时要执行的函数的指针。
     aeEventFinalizerProc *finalizerProc;
     void *clientData;
     struct aeTimeEvent *prev;

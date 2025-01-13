@@ -1154,7 +1154,7 @@ void cronUpdateMemoryStats() {
         /* Sample the RSS and other metrics here since this is a relatively slow call.
          * We must sample the zmalloc_used at the same time we take the rss, otherwise
          * the frag ratio calculate may be off (ratio of two samples at different times) */
-        server.cron_malloc_stats.process_rss = zmalloc_get_rss();
+        server.cron_malloc_stats.process_rss = zmalloc_get_rss(); // linux是从 /proc/%ld/psinfo 中获取的
         server.cron_malloc_stats.zmalloc_used = zmalloc_used_memory();
         /* Sampling the allocator info can be slow too.
          * The fragmentation ratio it'll show is potentially more accurate
@@ -1299,7 +1299,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
 
     /* Show information about connected clients */
     if (!server.sentinel_mode) {
-        run_with_period(5000) {
+        run_with_period(5000) { // 5s执行一次
             serverLog(LL_DEBUG,
                 "%lu clients connected (%lu replicas), %zu bytes in use",
                 listLength(server.clients)-listLength(server.slaves),
@@ -1331,7 +1331,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     } else {
         /* If there is not a background saving/rewrite in progress check if
          * we have to save/rewrite now. */
-        for (j = 0; j < server.saveparamslen; j++) {
+        for (j = 0; j < server.saveparamslen; j++) { // 设置了 saveparamslen
             struct saveparam *sp = server.saveparams+j;
 
             /* Save if we reached the given amount of changes,
@@ -1414,15 +1414,15 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
 
     /* Run the Sentinel timer if we are in sentinel mode. */
     if (server.sentinel_mode) sentinelTimer();
-
-    /* Cleanup expired MIGRATE cached sockets. */
-    run_with_period(1000) {
-        migrateCloseTimedoutSockets();
-    }
-
-    /* Stop the I/O threads if we don't have enough pending work. */
-    stopThreadedIOIfNeeded();
-
+// 以下是临时注释
+//    /* Cleanup expired MIGRATE cached sockets. */
+//    run_with_period(1000) {
+//        migrateCloseTimedoutSockets();
+//    }
+//
+//    /* Stop the I/O threads if we don't have enough pending work. */
+//    stopThreadedIOIfNeeded();
+// 结束临时注释
     /* Resize tracking keys table if needed. This is also done at every
      * command execution, but we want to be sure that if the last command
      * executed changes the value via CONFIG SET, the server will perform
@@ -1922,7 +1922,7 @@ void initServerConfig(void) {
     server.ipfd.count = 0;
     server.tlsfd.count = 0;
     server.sofd = -1;
-    server.active_expire_enabled = 1;
+    server.active_expire_enabled = 0; // 定期删除的开关
     server.skip_checksum_validation = 0;
     server.loading = 0;
     server.async_loading = 0;
@@ -2971,7 +2971,7 @@ void redisOpArrayInit(redisOpArray *oa) {
     oa->numops = 0;
     oa->capacity = 0;
 }
-
+// 添加的操作是在 call -> afterCommand() -> propagatePendingCommands() 处理的
 int redisOpArrayAppend(redisOpArray *oa, int dbid, robj **argv, int argc, int target) {
     redisOp *op;
     int prev_capacity = oa->capacity;
@@ -3142,7 +3142,7 @@ static void propagateNow(int dbid, robj **argv, int argc, int target) {
     /* This needs to be unreachable since the dataset should be fixed during 
      * client pause, otherwise data may be lost during a failover. */
     serverAssert(!(areClientsPaused() && !server.client_pause_in_transaction));
-
+    // 命令写到 AOF 和 复制中
     if (server.aof_state != AOF_OFF && target & PROPAGATE_AOF)
         feedAppendOnlyFile(dbid,argv,argc);
     if (target & PROPAGATE_REPL)
@@ -3371,7 +3371,7 @@ void call(client *c, int flags) {
         monotonic_start = getMonotonicUs();
 
     server.in_nested_call++;
-    c->cmd->proc(c);
+    c->cmd->proc(c); // 核心命令
     server.in_nested_call--;
 
     /* In order to avoid performance implication due to querying the clock using a system call 3 times,
@@ -3434,7 +3434,7 @@ void call(client *c, int flags) {
     /* Log the command into the Slow log if needed.
      * If the client is blocked we will handle slowlog when it is unblocked. */
     if ((flags & CMD_CALL_SLOWLOG) && !(c->flags & CLIENT_BLOCKED))
-        slowlogPushCurrentCommand(c, real_cmd, duration);
+        slowlogPushCurrentCommand(c, real_cmd, duration); // 记录慢查询
 
     /* Send the command to clients in MONITOR mode if applicable.
      * Administrative commands are considered too dangerous to be shown. */
@@ -4094,7 +4094,7 @@ int prepareForShutdown(int flags) {
     {
         server.shutdown_mstime = server.mstime + server.shutdown_timeout * 1000;
         if (!areClientsPaused()) sendGetackToReplicas();
-        pauseClients(PAUSE_DURING_SHUTDOWN, LLONG_MAX, CLIENT_PAUSE_WRITE);
+        pauseClients(PAUSE_DURING_SHUTDOWN, LLONG_MAX, CLIENT_PAUSE_WRITE); // 暂停客户端
         serverLog(LL_NOTICE, "Waiting for replicas before shutting down.");
         return C_ERR;
     }
@@ -5806,7 +5806,7 @@ sds genRedisInfoString(dict *section_dict, int all_sections, int everything) {
             "# Replication\r\n"
             "role:%s\r\n",
             server.masterhost == NULL ? "master" : "slave");
-        if (server.masterhost) {
+        if (server.masterhost) { // 如果它不会 NULL，说明它为从库
             long long slave_repl_offset = 1;
             long long slave_read_repl_offset = 1;
 

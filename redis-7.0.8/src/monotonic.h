@@ -25,8 +25,8 @@ typedef uint64_t monotime;
 extern monotime (*getMonotonicUs)(void);
 
 typedef enum monotonic_clock_type {
-    MONOTONIC_CLOCK_POSIX,
-    MONOTONIC_CLOCK_HW,
+    MONOTONIC_CLOCK_POSIX, // POSIX 标准的 clock_gettime 函数来获取单调时间。
+    MONOTONIC_CLOCK_HW, // 处理器时钟
 } monotonic_clock_type;
 
 /* Call once at startup to initialize the monotonic clock.  Though this only

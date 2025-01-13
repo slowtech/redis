@@ -1243,7 +1243,7 @@ werr:
     dictReleaseIterator(iter);
     return -1;
 }
-
+// 将 DB 中的key存储在RDB文件中
 ssize_t rdbSaveDb(rio *rdb, int dbid, int rdbflags, long *key_counter) {
     dictIterator *di;
     dictEntry *de;
@@ -1282,7 +1282,7 @@ ssize_t rdbSaveDb(rio *rdb, int dbid, int rdbflags, long *key_counter) {
         size_t rdb_bytes_before_key = rdb->processed_bytes;
 
         initStaticStringObject(key,keystr);
-        expire = getExpire(db,&key);
+        expire = getExpire(db,&key); // 获取key的过期时间
         if ((res = rdbSaveKeyValuePair(rdb, &key, o, expire, dbid)) < 0) goto werr;
         written += res;
 
@@ -1320,7 +1320,7 @@ werr:
  * When the function returns C_ERR and if 'error' is not NULL, the
  * integer pointed by 'error' is set to the value of errno just after the I/O
  * error. */
-int rdbSaveRio(int req, rio *rdb, int *error, int rdbflags, rdbSaveInfo *rsi) {
+int rdbSaveRio(int req, rio *rdb, int *error, int rdbflags, rdbSaveInfo *rsi) { // 执行 BGSAVE 命令将内存中的数据写入到RDB文件中
     char magic[10];
     uint64_t cksum;
     long key_counter = 0;
@@ -1478,7 +1478,7 @@ int rdbSaveBackground(int req, char *filename, rdbSaveInfo *rsi) {
         /* Child */
         redisSetProcTitle("redis-rdb-bgsave");
         redisSetCpuAffinity(server.bgsave_cpulist);
-        retval = rdbSave(req, filename,rsi);
+        retval = rdbSave(req, filename,rsi); // bgsave
         if (retval == C_OK) {
             sendChildCowInfo(CHILD_INFO_TYPE_RDB_COW_SIZE, "RDB");
         }
@@ -3399,7 +3399,7 @@ int rdbSaveToSlavesSockets(int req, rdbSaveInfo *rsi) {
     server.rdb_pipe_numconns = 0;
     server.rdb_pipe_numconns_writing = 0;
     listRewind(server.slaves,&li);
-    while((ln = listNext(&li))) {
+    while((ln = listNext(&li))) { // 这里应该提供了证据，即有多个slave同时发起复制请求时，主库不会多次RDB请求。
         client *slave = ln->value;
         if (slave->replstate == SLAVE_STATE_WAIT_BGSAVE_START) {
             /* Check slave has the exact requirements */
@@ -3490,7 +3490,7 @@ void saveCommand(client *c) {
 
     rdbSaveInfo rsi, *rsiptr;
     rsiptr = rdbPopulateSaveInfo(&rsi);
-    if (rdbSave(SLAVE_REQ_NONE,server.rdb_filename,rsiptr) == C_OK) {
+    if (rdbSave(SLAVE_REQ_NONE,server.rdb_filename,rsiptr) == C_OK) { // save 命令
         addReply(c,shared.ok);
     } else {
         addReplyErrorObject(c,shared.err);
@@ -3527,7 +3527,7 @@ void bgsaveCommand(client *c) {
             "Use BGSAVE SCHEDULE in order to schedule a BGSAVE whenever "
             "possible.");
         }
-    } else if (rdbSaveBackground(SLAVE_REQ_NONE,server.rdb_filename,rsiptr) == C_OK) {
+    } else if (rdbSaveBackground(SLAVE_REQ_NONE,server.rdb_filename,rsiptr) == C_OK) { // 用于bgsave
         addReplyStatus(c,"Background saving started");
     } else {
         addReplyErrorObject(c,shared.err);

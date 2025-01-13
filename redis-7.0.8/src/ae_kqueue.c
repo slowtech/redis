@@ -131,7 +131,6 @@ static void aeApiDelEvent(aeEventLoop *eventLoop, int fd, int mask) {
 static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
     aeApiState *state = eventLoop->apidata;
     int retval, numevents = 0;
-
     if (tvp != NULL) {
         struct timespec timeout;
         timeout.tv_sec = tvp->tv_sec;
@@ -181,7 +180,6 @@ static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
     } else if (retval == -1 && errno != EINTR) {
         panic("aeApiPoll: kevent, %s", strerror(errno));
     }
-
     return numevents;
 }
 

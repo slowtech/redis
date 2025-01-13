@@ -388,7 +388,7 @@ static int updateClientOutputBufferLimit(sds *args, int arg_len, const char **er
     int hard_err, soft_err;
     int soft_seconds;
     char *soft_seconds_eptr;
-    clientBufferLimitsConfig values[CLIENT_TYPE_OBUF_COUNT];
+    clientBufferLimitsConfig values[CLIENT_TYPE_OBUF_COUNT]; // 客户端的类型有三种，normal, slave, pubsub
     int classes[CLIENT_TYPE_OBUF_COUNT] = {0};
 
     /* We need a multiple of 4: <class> <hard> <soft> <soft_seconds> */
@@ -402,7 +402,7 @@ static int updateClientOutputBufferLimit(sds *args, int arg_len, const char **er
      * whole configuration string or accept it all, even if a single
      * error in a single client class is present. */
     for (j = 0; j < arg_len; j += 4) {
-        class = getClientTypeByName(args[j]);
+        class = getClientTypeByName(args[j]); // 基于名字来获取客户端的类型
         if (class == -1 || class == CLIENT_TYPE_MASTER) {
             if (err) *err = "Invalid client class specified in "
                             "buffer limit configuration.";
@@ -3186,7 +3186,7 @@ int registerConfigValue(const char *name, const standardConfig *config, int alia
 
     return dictAdd(configs, sdsnew(name), new) == DICT_OK;
 }
-
+// 初始化配置参数，这里也是需要分配内存空间的
 /* Initialize configs to their default values and create and populate the 
  * runtime configuration dictionary. */
 void initConfigValues() {

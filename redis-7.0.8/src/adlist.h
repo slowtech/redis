@@ -32,7 +32,7 @@
 #define __ADLIST_H__
 
 /* Node, List, and Iterator are the only data structures used currently. */
-
+// 通过 sizeof(listNode)  计算的大小是24，在 64 位系统上，指针通常是 8 字节，因此 listNode 的大小是 24 字节。
 typedef struct listNode {
     struct listNode *prev;
     struct listNode *next;

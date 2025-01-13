@@ -10,7 +10,7 @@ static redisAtomic size_t lazyfreed_objects = 0;
  * updating the count of objects to release. */
 void lazyfreeFreeObject(void *args[]) {
     robj *o = (robj *) args[0];
-    decrRefCount(o);
+    decrRefCount(o); // 异步删除对象
     atomicDecr(lazyfree_objects,1);
     atomicIncr(lazyfreed_objects,1);
 }

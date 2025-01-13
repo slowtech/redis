@@ -113,7 +113,7 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
     notifyKeyspaceEvent(NOTIFY_STRING,"set",key,c->db->id);
 
     if (expire) {
-        setExpire(c,c->db,key,milliseconds);
+        setExpire(c,c->db,key,milliseconds); // 将过期键添加到db->expires字典中
         /* Propagate as SET Key Value PXAT millisecond-timestamp if there is
          * EX/PX/EXAT/PXAT flag. */
         robj *milliseconds_obj = createStringObjectFromLongLong(milliseconds);

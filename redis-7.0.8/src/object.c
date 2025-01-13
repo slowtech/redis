@@ -1134,7 +1134,7 @@ void freeMemoryOverheadData(struct redisMemOverhead *mh) {
 /* Return a struct redisMemOverhead filled with memory overhead
  * information used for the MEMORY OVERHEAD and INFO command. The returned
  * structure pointer should be freed calling freeMemoryOverheadData(). */
-struct redisMemOverhead *getMemoryOverheadData(void) {
+struct redisMemOverhead *getMemoryOverheadData(void) { // 可以看到内存都分配到哪里了
     int j;
     size_t mem_total = 0;
     size_t mem = 0;
@@ -1176,7 +1176,7 @@ struct redisMemOverhead *getMemoryOverheadData(void) {
         mh->clients_slaves = 0;
         mh->repl_backlog = server.repl_buffer_mem;
     }
-    if (server.repl_backlog) {
+    if (server.repl_backlog) { // 注意，这里是 +=，不是+号
         /* The approximate memory of rax tree for indexed blocks. */
         mh->repl_backlog +=
             server.repl_backlog->blocks_index->numnodes * sizeof(raxNode) +

@@ -266,7 +266,7 @@ void incrementalTrimReplicationBacklog(size_t max_blocks) {
         listNode *first = listFirst(server.repl_buffer_blocks);
         serverAssert(first == server.repl_backlog->ref_repl_buf_node);
         replBufBlock *fo = listNodeValue(first);
-        if (fo->refcount != 1) break;
+        if (fo->refcount != 1) break; // 如果这个 block 有被从库需要，则这个 block 不会删除，这也是为什么在建立复制时，server.repl_buffer_mem 能远远超过 server.repl_backlog_size 的大小
 
         /* We don't try trim backlog if backlog valid size will be lessen than
          * setting backlog size once we release the first repl buffer block. */
@@ -324,8 +324,8 @@ void feedReplicationBuffer(char *s, size_t len) {
     static long long repl_block_id = 0;
 
     if (server.repl_backlog == NULL) return;
-    server.master_repl_offset += len;
-    server.repl_backlog->histlen += len;
+    server.master_repl_offset += len;  // master_repl_offset是主库的复制偏移量
+    server.repl_backlog->histlen += len; // repl_backlog 的大小由 repl-backlog-size 决定
 
     size_t start_pos = 0; /* The position of referenced block to start sending. */
     listNode *start_node = NULL; /* Replica/backlog starts referenced node. */
@@ -351,7 +351,7 @@ void feedReplicationBuffer(char *s, size_t len) {
          * least PROTO_REPLY_CHUNK_BYTES */
         size_t usable_size;
         size_t size = (len < PROTO_REPLY_CHUNK_BYTES) ? PROTO_REPLY_CHUNK_BYTES : len;
-        tail = zmalloc_usable(size + sizeof(replBufBlock), &usable_size);
+        tail = zmalloc_usable(size + sizeof(replBufBlock), &usable_size); // size是要分配的内存大小，usable是实际分配的内存大小。这个设计考虑了不同的内存分配器实现，特别是在不同的环境或内存分配库中，实际分配的内存大小可能与请求的大小不同。
         /* Take over the allocation's internal fragmentation */
         tail->size = usable_size - sizeof(replBufBlock);
         tail->used = len;
@@ -851,7 +851,7 @@ int startBgsaveForReplication(int mincapa, int req) {
         if (socket_target)
             retval = rdbSaveToSlavesSockets(req,rsiptr);
         else
-            retval = rdbSaveBackground(req,server.rdb_filename,rsiptr);
+            retval = rdbSaveBackground(req,server.rdb_filename,rsiptr); // 复制时
     } else {
         serverLog(LL_WARNING,"BGSAVE for replication: replication information not available, can't generate the RDB file right now. Try later.");
         retval = C_ERR;
@@ -906,7 +906,7 @@ int startBgsaveForReplication(int mincapa, int req) {
 }
 
 /* SYNC and PSYNC command implementation. */
-void syncCommand(client *c) {
+void syncCommand(client *c) { // PSYNC 的实现逻辑
     /* ignore SYNC if already slave or in monitor mode */
     if (c->flags & CLIENT_SLAVE) return;
 
@@ -1705,7 +1705,7 @@ void replicationEmptyDbCallback(dict *d) {
 void replicationCreateMasterClient(connection *conn, int dbid) {
     server.master = createClient(conn);
     if (conn)
-        connSetReadHandler(server.master->conn, readQueryFromClient);
+        connSetReadHandler(server.master->conn, readQueryFromClient); // 读取主库的 output buffer 里面缓存的命令
 
     /**
      * Important note:
@@ -2014,7 +2014,7 @@ void readSyncBulkPayload(connection *conn) {
         replicationAttachToNewMaster();
 
         serverLog(LL_NOTICE, "MASTER <-> REPLICA sync: Flushing old data");
-        emptyData(-1,empty_db_flags,replicationEmptyDbCallback);
+        emptyData(-1,empty_db_flags,replicationEmptyDbCallback); // 注意，这里的 empty_db_flags 决定了老的数据是通过异步还是同步方式删除，而 empty_db_flags 又是有 slave-lazy-flush 这个参数决定的
     }
 
     /* Before loading the DB into memory we need to delete the readable
@@ -2167,7 +2167,7 @@ void readSyncBulkPayload(connection *conn) {
             cancelReplicationHandshake(1);
             return;
         }
-
+        // 从 RDB 文件中加载数据
         if (rdbLoad(server.rdb_filename,&rsi,RDBFLAGS_REPLICATION) != C_OK) {
             serverLog(LL_WARNING,
                 "Failed trying to load the MASTER synchronization "
@@ -2385,7 +2385,7 @@ char *sendCommandArgv(connection *conn, int argc, char **argv, size_t *argv_lens
 #define PSYNC_FULLRESYNC 3
 #define PSYNC_NOT_SUPPORTED 4
 #define PSYNC_TRY_LATER 5
-int slaveTryPartialResynchronization(connection *conn, int read_reply) {
+int slaveTryPartialResynchronization(connection *conn, int read_reply) { // 部分重同步的实现逻辑
     char *psync_replid;
     char psync_offset[32];
     sds reply;
@@ -2398,7 +2398,7 @@ int slaveTryPartialResynchronization(connection *conn, int read_reply) {
          * right value, so that this information will be propagated to the
          * client structure representing the master into server.master. */
         server.master_initial_offset = -1;
-
+        // 如果有 cached_master，则会尝试进行增量同步，否则发送的就是 PSYNC ? -1
         if (server.cached_master) {
             psync_replid = server.cached_master->replid;
             snprintf(psync_offset,sizeof(psync_offset),"%lld", server.cached_master->reploff+1);
@@ -2767,7 +2767,7 @@ void syncWithMaster(connection *conn) {
         goto error;
     }
 
-    psync_result = slaveTryPartialResynchronization(conn,1);
+    psync_result = slaveTryPartialResynchronization(conn,1); // 部分重同步
     if (psync_result == PSYNC_WAIT_REPLY) return; /* Try again later... */
 
     /* Check the status of the planned failover. We expect PSYNC_CONTINUE,
@@ -3076,7 +3076,7 @@ void replicationHandleMasterDisconnection(void) {
         connectWithMaster();
     }
 }
-
+// slave of 命令的实现逻辑
 void replicaofCommand(client *c) {
     /* SLAVEOF is not allowed in cluster mode as replication is automatically
      * configured using the current address of the master node. */
@@ -3210,7 +3210,7 @@ void replicationSendAck(void) {
         addReplyArrayLen(c,3);
         addReplyBulkCString(c,"REPLCONF");
         addReplyBulkCString(c,"ACK");
-        addReplyBulkLongLong(c,c->reploff);
+        addReplyBulkLongLong(c,c->reploff); // 这个位置实际上就是在主库上执行info看到的从库的offset
         c->flags &= ~CLIENT_MASTER_FORCE_REPLY;
     }
 }
@@ -3235,7 +3235,7 @@ void replicationSendAck(void) {
  * replicationResurrectCachedMaster() that is used after a successful PSYNC
  * handshake in order to reactivate the cached master.
  */
-void replicationCacheMaster(client *c) {
+void replicationCacheMaster(client *c) { // 缓存 master 的状态信息
     serverAssert(server.master != NULL && server.cached_master == NULL);
     serverLog(LL_NOTICE,"Caching the disconnected master state.");
 
@@ -3444,10 +3444,10 @@ int replicationCountAcksByOffset(long long offset) {
     }
     return count;
 }
-
+// This command blocks the current client until all the previous write commands are successfully transferred and acknowledged by at least the number of replicas you specify in the numreplicas argument.
 /* WAIT for N replicas to acknowledge the processing of our latest
  * write command (and all the previous commands). */
-void waitCommand(client *c) {
+void waitCommand(client *c) { // 这个是3.0引入的wait命令，用来实现同步复制的效果
     mstime_t timeout;
     long numreplicas, ackreplicas;
     long long offset = c->woff;
@@ -3551,7 +3551,7 @@ long long replicationGetSlaveOffset(void) {
 /* --------------------------- REPLICATION CRON  ---------------------------- */
 
 /* Replication cron function, called 1 time per second. */
-void replicationCron(void) {
+void replicationCron(void) { // 复制相关的定时任务
     static long long replication_cron_loops = 0;
 
     /* Check failover status first, to see if we need to start
@@ -3596,7 +3596,7 @@ void replicationCron(void) {
      * support PSYNC and replication offsets. */
     if (server.masterhost && server.master &&
         !(server.master->flags & CLIENT_PRE_PSYNC))
-        replicationSendAck();
+        replicationSendAck(); // 定时发送从库的offset信息
 
     /* If we have attached slaves, PING them from time to time.
      * So slaves can implement an explicit timeout to masters, and will
@@ -4005,7 +4005,7 @@ void failoverCommand(client *c) {
     server.force_failover = force_flag;
     server.failover_state = FAILOVER_WAIT_FOR_SYNC;
     /* Cluster failover will unpause eventually */
-    pauseClients(PAUSE_DURING_FAILOVER, LLONG_MAX, CLIENT_PAUSE_WRITE);
+    pauseClients(PAUSE_DURING_FAILOVER, LLONG_MAX, CLIENT_PAUSE_WRITE); //暂停客户端
     addReply(c,shared.ok);
 }
 

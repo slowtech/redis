@@ -80,7 +80,7 @@ struct dict {
     dictType *type;
 
     dictEntry **ht_table[2];
-    unsigned long ht_used[2];
+    unsigned long ht_used[2]; // 哈希表中有多少个桶正在使用中
 
     long rehashidx; /* rehashing not in progress if rehashidx == -1 */
 

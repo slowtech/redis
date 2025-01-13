@@ -1294,7 +1294,7 @@ sds genAofTimestampAnnotationIfNeeded(int force) {
     }
     return ts;
 }
-
+// 命令写到 AOF buffer 中
 void feedAppendOnlyFile(int dictid, robj **argv, int argc) {
     sds buf = sdsempty();
 

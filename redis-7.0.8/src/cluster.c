@@ -2573,7 +2573,7 @@ int clusterProcessPacket(clusterLink *link) {
         server.cluster->mf_slave = sender;
         pauseClients(PAUSE_DURING_FAILOVER,
                      now + (CLUSTER_MF_TIMEOUT * CLUSTER_MF_PAUSE_MULT),
-                     CLIENT_PAUSE_WRITE);
+                     CLIENT_PAUSE_WRITE); // 暂停客户端
         serverLog(LL_WARNING,"Manual failover requested by replica %.40s.",
             sender->name);
         /* We need to send a ping message to the replica, as it would carry

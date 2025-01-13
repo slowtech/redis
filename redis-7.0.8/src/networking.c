@@ -1612,7 +1612,7 @@ void freeClient(client *c) {
         serverLog(LL_WARNING,"Connection with master lost.");
         if (!(c->flags & (CLIENT_PROTOCOL_ERROR|CLIENT_BLOCKED))) {
             c->flags &= ~(CLIENT_CLOSE_ASAP|CLIENT_CLOSE_AFTER_REPLY);
-            replicationCacheMaster(c);
+            replicationCacheMaster(c); // 为什么要缓存 master的信息，因为之前的连接断开了
             return;
         }
     }
@@ -2365,7 +2365,7 @@ int processMultibulkBuffer(client *c) {
                     sdsrange(c->querybuf,c->qb_pos,-1);
                     c->qb_pos = 0;
                     /* Hint the sds library about the amount of bytes this string is
-                     * going to contain. */
+                     * going to contain. */ // 这一步分配内存缓存客户端的命令，如果value比较大，则这一步分配的内存会比较大
                     c->querybuf = sdsMakeRoomForNonGreedy(c->querybuf,ll+2-sdslen(c->querybuf));
                 }
             }
@@ -2692,11 +2692,11 @@ void readQueryFromClient(connection *conn) {
     } else {
         atomicIncr(server.stat_net_input_bytes, nread);
     }
-
+    // client_max_querybuf_len 这个参数后续要研究下，querybuf 是 Buffer we use to accumulate client queries.
     if (!(c->flags & CLIENT_MASTER) && sdslen(c->querybuf) > server.client_max_querybuf_len) {
-        sds ci = catClientInfoString(sdsempty(),c), bytes = sdsempty();
+        sds ci = catClientInfoString(sdsempty(),c), bytes = sdsempty(); // ci 是该客户端 client list的输出
 
-        bytes = sdscatrepr(bytes,c->querybuf,64);
+        bytes = sdscatrepr(bytes,c->querybuf,64); // 截取前 64 位字符打印
         serverLog(LL_WARNING,"Closing client that reached max query buffer length: %s (qbuf initial bytes: %s)", ci, bytes);
         sdsfree(ci);
         sdsfree(bytes);
@@ -2706,7 +2706,7 @@ void readQueryFromClient(connection *conn) {
 
     /* There is more data in the client input buffer, continue parsing it
      * and check if there is a full command to execute. */
-    if (processInputBuffer(c) == C_ERR)
+    if (processInputBuffer(c) == C_ERR) // 调用 processInputBuffer 执行命令
          c = NULL;
 
 done:
@@ -3227,7 +3227,7 @@ NULL
 
         if (getTimeoutFromObjectOrReply(c,c->argv[2],&end,
             UNIT_MILLISECONDS) != C_OK) return;
-        pauseClients(PAUSE_BY_CLIENT_COMMAND, end, type);
+        pauseClients(PAUSE_BY_CLIENT_COMMAND, end, type); //暂停客户端
         addReply(c,shared.ok);
     } else if (!strcasecmp(c->argv[1]->ptr,"tracking") && c->argc >= 3) {
         /* CLIENT TRACKING (on|off) [REDIRECT <id>] [BCAST] [PREFIX first]
@@ -3653,7 +3653,7 @@ void rewriteClientCommandArgument(client *c, int i, robj *newval) {
         serverAssertWithInfo(c,NULL,c->cmd != NULL);
     }
 }
-
+// 在 C 语言中，sizeof 是一个运算符，用于获取数据类型或变量所占的内存大小（以字节为单位）。
 /* This function returns the number of bytes that Redis is
  * using to store the reply still not read by the client.
  *
@@ -3666,8 +3666,8 @@ size_t getClientOutputBufferMemoryUsage(client *c) {
         size_t repl_node_num = 0;
         size_t repl_node_size = sizeof(listNode) + sizeof(replBufBlock);
         if (c->ref_repl_buf_node) {
-            replBufBlock *last = listNodeValue(listLast(server.repl_buffer_blocks));
-            replBufBlock *cur = listNodeValue(c->ref_repl_buf_node);
+            replBufBlock *last = listNodeValue(listLast(server.repl_buffer_blocks)); // Replication buffers blocks list 的最后一个block
+            replBufBlock *cur = listNodeValue(c->ref_repl_buf_node); // ref_repl_buf_node; /* Referenced node of replication buffer blocks, 从库是当前关联的第一个 block，因为每个从库读到的不一样，所以，每个从库的 omem 可能会不一样。
             repl_buf_size = last->repl_offset + last->size - cur->repl_offset;
             repl_node_num = last->id - cur->id + 1;
         }
@@ -3684,8 +3684,8 @@ size_t getClientOutputBufferMemoryUsage(client *c) {
 size_t getClientMemoryUsage(client *c, size_t *output_buffer_mem_usage) {
     size_t mem = getClientOutputBufferMemoryUsage(c);
     if (output_buffer_mem_usage != NULL)
-        *output_buffer_mem_usage = mem;
-    mem += sdsZmallocSize(c->querybuf);
+        *output_buffer_mem_usage = mem; // output buffer
+    mem += sdsZmallocSize(c->querybuf); // query buffer
     mem += zmalloc_size(c);
     mem += c->buf_usable_size;
     /* For efficiency (less work keeping track of the argv memory), it doesn't include the used memory
@@ -3751,9 +3751,9 @@ char *getClientTypeName(int class) {
  *               Otherwise zero is returned. */
 int checkClientOutputBufferLimits(client *c) {
     int soft = 0, hard = 0, class;
-    unsigned long used_mem = getClientOutputBufferMemoryUsage(c);
+    unsigned long used_mem = getClientOutputBufferMemoryUsage(c); // 获取客户端的内存使用
 
-    class = getClientType(c);
+    class = getClientType(c); // 获取客户端的类型
     /* For the purpose of output buffer limiting, masters are handled
      * like normal clients. */
     if (class == CLIENT_TYPE_MASTER) class = CLIENT_TYPE_NORMAL;
@@ -3764,26 +3764,26 @@ int checkClientOutputBufferLimits(client *c) {
      * Such a configuration is ignored (the size of repl-backlog-size will be used).
      * This doesn't have memory consumption implications since the replica client
      * will share the backlog buffers memory. */
-    size_t hard_limit_bytes = server.client_obuf_limits[class].hard_limit_bytes;
+    size_t hard_limit_bytes = server.client_obuf_limits[class].hard_limit_bytes; // 硬限制
     if (class == CLIENT_TYPE_SLAVE && hard_limit_bytes &&
         (long long)hard_limit_bytes < server.repl_backlog_size)
-        hard_limit_bytes = server.repl_backlog_size;
+        hard_limit_bytes = server.repl_backlog_size; // 如果客户端的类型是slave，且硬限制小于repl_backlog_size，则会将 repl_backlog_size 赋值给硬限制
     if (server.client_obuf_limits[class].hard_limit_bytes &&
         used_mem >= hard_limit_bytes)
-        hard = 1;
+        hard = 1; // 如果使用的内存超过了硬限制
     if (server.client_obuf_limits[class].soft_limit_bytes &&
         used_mem >= server.client_obuf_limits[class].soft_limit_bytes)
-        soft = 1;
+        soft = 1; // 如果使用的内存超过了软限制
 
     /* We need to check if the soft limit is reached continuously for the
      * specified amount of seconds. */
-    if (soft) {
-        if (c->obuf_soft_limit_reached_time == 0) {
+    if (soft) { // 如果是软限制
+        if (c->obuf_soft_limit_reached_time == 0) { // 第一次达到软限制的时间
             c->obuf_soft_limit_reached_time = server.unixtime;
             soft = 0; /* First time we see the soft limit reached */
         } else {
             time_t elapsed = server.unixtime - c->obuf_soft_limit_reached_time;
-
+            // 当前时间减去软限制时间，如果持续时间小于soft_limit_seconds，则会将soft设置为0
             if (elapsed <=
                 server.client_obuf_limits[class].soft_limit_seconds) {
                 soft = 0; /* The client still did not reached the max number of
@@ -3792,7 +3792,7 @@ int checkClientOutputBufferLimits(client *c) {
             }
         }
     } else {
-        c->obuf_soft_limit_reached_time = 0;
+        c->obuf_soft_limit_reached_time = 0; // 如果没有超过软限制，则会将第一次达到软限制的时间重置为0
     }
     return soft || hard;
 }
@@ -3935,7 +3935,7 @@ void unblockPostponedClients() {
  * In such a case, the duration is set to the maximum and new end time and the
  * type is set to the more restrictive type of pause. */
 void pauseClients(pause_purpose purpose, mstime_t end, pause_type type) {
-    /* Manage pause type and end time per pause purpose. */
+    /* Manage pause type and end time per pause purpose. */ // 暂停客户端
     if (server.client_pause_per_purpose[purpose] == NULL) {
         server.client_pause_per_purpose[purpose] = zmalloc(sizeof(pause_event));
         server.client_pause_per_purpose[purpose]->type = type;
@@ -3975,7 +3975,7 @@ int areClientsPaused(void) {
 int checkClientPauseTimeoutAndReturnIfPaused(void) {
     if (!areClientsPaused())
         return 0;
-    if (server.client_pause_end_time < server.mstime) {
+    if (server.client_pause_end_time < server.mstime) { // server.client_pause_end_time 是 client pause 命令指定的结束时间
         updateClientPauseTypeAndEndTime();
     }
     return areClientsPaused();

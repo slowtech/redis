@@ -25,7 +25,7 @@ static char monotonic_info_string[32];
 #define USE_PROCESSOR_CLOCK
  */
 
-
+// x86 架构的单调时钟实现
 #if defined(USE_PROCESSOR_CLOCK) && defined(__x86_64__) && defined(__linux__)
 #include <regex.h>
 #include <x86intrin.h>
@@ -94,7 +94,7 @@ static void monotonicInit_x86linux() {
 }
 #endif
 
-
+// ARM 架构的单调时钟实现
 #if defined(USE_PROCESSOR_CLOCK) && defined(__aarch64__)
 static long mono_ticksPerMicrosecond = 0;
 
@@ -129,7 +129,7 @@ static void monotonicInit_aarch64() {
 }
 #endif
 
-
+// POSIX 标准的单调时钟实现
 static monotime getMonotonicUs_posix() {
     /* clock_gettime() is specified in POSIX.1b (1993).  Even so, some systems
      * did not support this until much later.  CLOCK_MONOTONIC is technically
@@ -154,8 +154,8 @@ static void monotonicInit_posix() {
 }
 
 
-
-const char * monotonicInit() {
+// monotonicInit 函数会根据系统和架构的条件初始化适当的时间获取函数。如果处理器时钟可用，则优先使用处理器时钟；否则，使用 POSIX 方法。函数返回当前单调时钟实现的描述信息。
+const char * monotonicInit() { //
     #if defined(USE_PROCESSOR_CLOCK) && defined(__x86_64__) && defined(__linux__)
     if (getMonotonicUs == NULL) monotonicInit_x86linux();
     #endif

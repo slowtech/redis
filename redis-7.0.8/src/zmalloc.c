@@ -88,7 +88,7 @@ void zlibc_free(void *ptr) {
 #define mallocx(size,flags) je_mallocx(size,flags)
 #define dallocx(ptr,flags) je_dallocx(ptr,flags)
 #endif
-
+/* update_zmalloc_stat_alloc 用来增加 used_memory 的值，update_zmalloc_stat_free用来减去 used_memory 的值*/
 #define update_zmalloc_stat_alloc(__n) atomicIncr(used_memory,(__n))
 #define update_zmalloc_stat_free(__n) atomicDecr(used_memory,(__n))
 
@@ -113,6 +113,9 @@ void *ztrymalloc_usable(size_t size, size_t *usable) {
 #ifdef HAVE_MALLOC_SIZE
     size = zmalloc_size(ptr);
     update_zmalloc_stat_alloc(size);
+    fprintf(stderr, "PID: %d, ztrymalloc_usable trying to allocate %zu bytes\n", getpid(),
+            size);
+    fflush(stderr);
     if (usable) *usable = size;
     return ptr;
 #else
@@ -173,6 +176,9 @@ void *ztrycalloc_usable(size_t size, size_t *usable) {
 #ifdef HAVE_MALLOC_SIZE
     size = zmalloc_size(ptr);
     update_zmalloc_stat_alloc(size);
+    fprintf(stderr, "ztrycalloc_usable trying to allocate %zu bytes\n",
+            size);
+    fflush(stderr);
     if (usable) *usable = size;
     return ptr;
 #else
@@ -247,8 +253,14 @@ void *ztryrealloc_usable(void *ptr, size_t size, size_t *usable) {
     }
 
     update_zmalloc_stat_free(oldsize);
+    fprintf(stderr, "ztryrealloc_usable trying to free %zu bytes\n",
+            oldsize);
+    fflush(stderr);
     size = zmalloc_size(newptr);
     update_zmalloc_stat_alloc(size);
+    fprintf(stderr, "ztryrealloc_usable trying to allocate %zu bytes\n",
+            size);
+    fflush(stderr);
     if (usable) *usable = size;
     return newptr;
 #else
@@ -312,6 +324,9 @@ void zfree(void *ptr) {
     if (ptr == NULL) return;
 #ifdef HAVE_MALLOC_SIZE
     update_zmalloc_stat_free(zmalloc_size(ptr));
+    fprintf(stderr, "zfree trying to free %zu bytes\n",
+            zmalloc_size(ptr));
+    fflush(stderr);
     free(ptr);
 #else
     realptr = (char*)ptr-PREFIX_SIZE;
@@ -331,6 +346,9 @@ void zfree_usable(void *ptr, size_t *usable) {
     if (ptr == NULL) return;
 #ifdef HAVE_MALLOC_SIZE
     update_zmalloc_stat_free(*usable = zmalloc_size(ptr));
+    fprintf(stderr, "zfree_usable trying to free %zu bytes\n",
+            zmalloc_size(ptr));
+    fflush(stderr);
     free(ptr);
 #else
     realptr = (char*)ptr-PREFIX_SIZE;
@@ -648,7 +666,7 @@ int jemalloc_purge() {
  * Example: zmalloc_get_smap_bytes_by_field("Rss:",-1);
  */
 #if defined(HAVE_PROC_SMAPS)
-size_t zmalloc_get_smap_bytes_by_field(char *field, long pid) {
+size_t zmalloc_get_smap_bytes_by_field(char *field, long pid) { // 获取 Private_Dirty 的值，该值即 Copy-On-Write 发生修改的内存大小
     char line[1024];
     size_t bytes = 0;
     int flen = strlen(field);

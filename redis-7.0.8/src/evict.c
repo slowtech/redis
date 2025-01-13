@@ -399,7 +399,7 @@ int getMaxmemoryState(size_t *total, size_t *logical, size_t *tofree, float *lev
 
     /* Check if we are over the memory usage limit. If we are not, no need
      * to subtract the slaves output buffers. We can just return ASAP. */
-    mem_reported = zmalloc_used_memory();
+    mem_reported = zmalloc_used_memory(); // zmalloc_used_memory() 实际上就是我们在 info memory 中看到的 used_memory
     if (total) *total = mem_reported;
 
     /* We may return ASAP if there is no need to compute the level. */
@@ -412,7 +412,7 @@ int getMaxmemoryState(size_t *total, size_t *logical, size_t *tofree, float *lev
     /* Remove the size of slaves output buffers and AOF buffer from the
      * count of used memory. */
     mem_used = mem_reported;
-    size_t overhead = freeMemoryGetNotCountedMemory();
+    size_t overhead = freeMemoryGetNotCountedMemory(); // 不会计算 AOF buffer 和  slaves output buffers，这两个的和实际上就是 info memory 中的 mem_not_counted_for_evict
     mem_used = (mem_used > overhead) ? mem_used-overhead : 0;
 
     /* Compute the ratio of memory usage. */

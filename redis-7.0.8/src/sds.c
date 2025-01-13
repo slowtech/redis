@@ -193,7 +193,7 @@ sds sdsdup(const sds s) {
 /* Free an sds string. No operation is performed if 's' is NULL. */
 void sdsfree(sds s) {
     if (s == NULL) return;
-    s_free((char*)s-sdsHdrSize(s[-1]));
+    s_free((char*)s-sdsHdrSize(s[-1])); // 释放简单动态字符串（SDS）对象占用的内存空间。
 }
 
 /* Set the sds string length to the length as obtained with strlen(), so

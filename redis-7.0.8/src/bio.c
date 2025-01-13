@@ -141,17 +141,17 @@ void bioSubmitJob(int type, bio_job *job) {
 }
 
 void bioCreateLazyFreeJob(lazy_free_fn free_fn, int arg_count, ...) {
-    va_list valist;
+    va_list valist; // va_list 是一个类型，用于声明一个可变参数列表
     /* Allocate memory for the job structure and all required
      * arguments */
     bio_job *job = zmalloc(sizeof(*job) + sizeof(void *) * (arg_count));
     job->free_args.free_fn = free_fn;
 
-    va_start(valist, arg_count);
+    va_start(valist, arg_count); // va_start 用于初始化可变参数列表。它接受两个参数：第一个参数是 va_list 类型的对象，第二个参数是可变参数列表中最后一个固定参数的名称。
     for (int i = 0; i < arg_count; i++) {
-        job->free_args.free_args[i] = va_arg(valist, void *);
+        job->free_args.free_args[i] = va_arg(valist, void *); // va_arg 用于获取可变参数列表中的一个参数，并指定其类型。它接受两个参数：第一个参数是 va_list 类型的对象，第二个参数是要获取的参数的类型。
     }
-    va_end(valist);
+    va_end(valist); // va_end 用于结束可变参数列表的处理。它接受一个参数，即 va_list 类型的对象。
     bioSubmitJob(BIO_LAZY_FREE, job);
 }
 
@@ -171,7 +171,7 @@ void bioCreateFsyncJob(int fd) {
 }
 
 void *bioProcessBackgroundJobs(void *arg) {
-    bio_job *job;
+    bio_job *job; // 后台线程
     unsigned long type = (unsigned long) arg;
     sigset_t sigset;
 
@@ -190,7 +190,7 @@ void *bioProcessBackgroundJobs(void *arg) {
         redis_set_thread_title("bio_aof_fsync");
         break;
     case BIO_LAZY_FREE:
-        redis_set_thread_title("bio_lazy_free");
+        redis_set_thread_title("bio_lazy_free"); // 设置线程名
         break;
     }
 
